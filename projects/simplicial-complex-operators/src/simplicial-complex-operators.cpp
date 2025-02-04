@@ -417,10 +417,11 @@ MeshSubset SimplicialComplexOperators::boundary(const MeshSubset& subset) const 
         }
     }
     std::set<size_t> v_cl_set;
+    v_cl_set.clear();
     std::set<size_t> f_cl_set;
-
+    f_cl_set.clear();
     MeshSubset result = MeshSubset(v_cl_set, e_cl_set, f_cl_set);
-    MeshSubset closure_subset = closure(subset);
+    MeshSubset closure_subset = closure(result);
 
 
     return closure_subset; // placeholder
