@@ -346,7 +346,7 @@ int SimplicialComplexOperators::isPureComplex(const MeshSubset& subset) const {
     geometry->requireVertexIndices();
     geometry->requireEdgeIndices();
     geometry->requireFaceIndices();  
-    if (isComplex(subset)) {
+    if (!isComplex(subset)) {
         return -1;
     }
 
@@ -355,39 +355,76 @@ int SimplicialComplexOperators::isPureComplex(const MeshSubset& subset) const {
     Vector<size_t> e = buildEdgeVector(subset);
     Vector<size_t> f = buildFaceVector(subset);
 
-    Vector<size_t> f_cl = f;
-    Vector<size_t> e_cl = A1.transpose()* f_cl;
-    Vector<size_t> v_cl = A0.transpose() * e_cl;
 
-    std::set<size_t> v_cl_set;
-    std::set<size_t> e_cl_set;
-    std::set<size_t> f_cl_set;
 
-    for (size_t i = 0; i < mesh->nVertices(); i++) {
-        if (v_cl[i] > 0) {
-            v_cl_set.insert(i);
+    if (f.any()) {
+        Vector<size_t> f_cl = f;
+        Vector<size_t> e_cl = A1.transpose()* f_cl;
+        Vector<size_t> v_cl = A0.transpose() * e_cl;
+
+        std::set<size_t> v_cl_set;
+        std::set<size_t> e_cl_set;
+        std::set<size_t> f_cl_set;
+
+        for (size_t i = 0; i < mesh->nVertices(); i++) {
+            if (v_cl[i] > 0) {
+                v_cl_set.insert(i);
+            }
         }
-    }
 
-    for (size_t i = 0; i < mesh->nEdges(); i++) {
-        if (e_cl[i] > 0) {
-            e_cl_set.insert(i);
+        for (size_t i = 0; i < mesh->nEdges(); i++) {
+            if (e_cl[i] > 0) {
+                e_cl_set.insert(i);
+            }
         }
-    }
 
-    for (size_t i = 0; i < mesh->nFaces(); i++) {
-        if (f_cl[i] > 0) {
-            f_cl_set.insert(i);
+        for (size_t i = 0; i < mesh->nFaces(); i++) {
+            if (f_cl[i] > 0) {
+                f_cl_set.insert(i);
+            }
         }
+
+        MeshSubset pure_complex_subest = MeshSubset(v_cl_set, e_cl_set, f_cl_set);
+
+        if (pure_complex_subest.equals(subset)) {
+            return 2;
+        }
+        return -1;
     }
 
-    MeshSubset pure_complex_subest = MeshSubset(v_cl_set, e_cl_set, f_cl_set);
+    // do not contain face, 1-complex or 0-complex
+    if (e.any()) {
+        Vector<size_t> e_cl = e;
+        Vector<size_t> v_cl = A0.transpose() * e_cl;
 
-    if (pure_complex_subest.equals(subset)) {
-        return 0;
+        std::set<size_t> v_cl_set;
+        std::set<size_t> e_cl_set;
+        std::set<size_t> f_cl_set;
+
+        for (size_t i = 0; i < mesh->nVertices(); i++) {
+            if (v_cl[i] > 0) {
+                v_cl_set.insert(i);
+            }
+        }
+
+        for (size_t i = 0; i < mesh->nEdges(); i++) {
+            if (e_cl[i] > 0) {
+                e_cl_set.insert(i);
+            }
+        }
+
+        MeshSubset pure_complex_subest = MeshSubset(v_cl_set, e_cl_set, f_cl_set);
+
+        if (pure_complex_subest.equals(subset)) {
+            return 1;
+        }
+        return -1;
     }
 
-    return -1; // placeholder
+
+    return 0;
+
+
 }
 
 /*
@@ -406,9 +443,9 @@ MeshSubset SimplicialComplexOperators::boundary(const MeshSubset& subset) const 
     Vector<size_t> e = buildEdgeVector(subset);
     Vector<size_t> f = buildFaceVector(subset);
 
-    Vector<size_t> f_cl = f;
-    Vector<size_t> e_cl = A1.transpose()* f_cl;
-    // Vector<size_t> v_cl = A0.transpose() * e_cl;
+    // Vector<size_t> f_cl = f;
+    Vector<size_t> e_cl = A1.transpose()* f;
+    Vector<size_t> v_cl = A0.transpose()* e;
 
     std::set<size_t> e_cl_set;
     for (size_t i = 0; i < mesh->nEdges(); i++) {
@@ -417,9 +454,12 @@ MeshSubset SimplicialComplexOperators::boundary(const MeshSubset& subset) const 
         }
     }
     std::set<size_t> v_cl_set;
-    v_cl_set.clear();
+    for (size_t i = 0; i < mesh->nVertices(); i++) {
+        if (v_cl[i] == 1) {
+            v_cl_set.insert(i);
+        }
+    }
     std::set<size_t> f_cl_set;
-    f_cl_set.clear();
     MeshSubset result = MeshSubset(v_cl_set, e_cl_set, f_cl_set);
     MeshSubset closure_subset = closure(result);
 
