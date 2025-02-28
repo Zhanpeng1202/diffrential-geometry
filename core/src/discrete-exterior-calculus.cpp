@@ -42,6 +42,8 @@ namespace surface {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar0Form() const {
 
+
+
     SparseMatrix<double> star0 = SparseMatrix<double> (mesh.nVertices(), mesh.nVertices());
 
     for (Vertex v : mesh.vertices()) {
@@ -61,12 +63,15 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar0Form() const {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar1Form() const {
 
+
+
+
     SparseMatrix<double> star1 = SparseMatrix<double> (mesh.nEdges(), mesh.nEdges());
 
     for (Edge e : mesh.edges()) {
         double cot = 0.0;
         cot += cotan(e.halfedge());
-        cot += (e.halfedge().twin() == e.halfedge() ? 0 : cotan(e.halfedge().twin()));
+        cot += cotan(e.halfedge().twin());
         star1.insert(e.getIndex(), e.getIndex()) = cot / 2.0;
     }
 
@@ -80,14 +85,12 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar1Form() const {
  * Returns: A sparse diagonal matrix representing the Hodge operator that can be applied to discrete 2-forms.
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar2Form() const {
-
     SparseMatrix<double> star2 = SparseMatrix<double> (mesh.nFaces(), mesh.nFaces());
 
     for (Face f : mesh.faces()) {
         double area = faceArea(f);
         star2.insert(f.getIndex(), f.getIndex()) = 1.0 / area;
     }
-
     return star2;
 }
 
@@ -160,8 +163,12 @@ SparseMatrix<double> VertexPositionGeometry::buildExteriorDerivative1Form() cons
 
     for (Face f : mesh.faces()) {
         for (Halfedge he : f.adjacentHalfedges()) {
-            // direction of the edge
-            d1.insert(f.getIndex(), he.edge().getIndex()) = (he == he.edge().halfedge()) ? 1 : -1;
+            if (he == he.edge().halfedge()) {
+                d1.insert(f.getIndex(), he.edge().getIndex()) = 1;
+            } else {
+                d1.insert(f.getIndex(), he.edge().getIndex()) = -1;
+            }
+
         }
     }
     return d1;
