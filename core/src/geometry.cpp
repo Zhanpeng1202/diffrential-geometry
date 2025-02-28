@@ -79,29 +79,42 @@ double VertexPositionGeometry::totalArea() const {
  * Returns: The cotan of the angle opposite the given halfedge.
  */
 double VertexPositionGeometry::cotan(Halfedge he) const {
-    // Get the opposite halfedge
-    Halfedge heOpp = he.next().next();
-    
-    // Get the vertices forming the angle opposite to the halfedge
+    // cotant  =  dot product / cross product
+    // (Hint: how are the dot and cross product of two vectors related to the cosine and sine of the angle between them?)
+
+    //       v1
+    //      /  \ half
+    //     /    \ edge
+    //    v3 --- v2
+    //    cotant for he is cot (v3) 
+    //   is (e2 dot e3) / (e2 cross e3)
+
     Vertex v1 = he.vertex();
-    Vertex v2 = heOpp.vertex();
-    Vertex v3 = he.next().vertex();
-    
-    // Get the positions of these vertices
-    Vector3 p1 = inputVertexPositions[v1];
-    Vector3 p2 = inputVertexPositions[v2];
-    Vector3 p3 = inputVertexPositions[v3];
-    
-    // Compute the vectors forming the angle
-    Vector3 vec1 = p1 - p3;
-    Vector3 vec2 = p2 - p3;
-    
-    // Compute dot product and magnitude of cross product
-    double dotProduct = dot(vec1, vec2);
-    double crossNorm = cross(vec1, vec2).norm();
-    
-    // Return the cotangent
-    return dotProduct / crossNorm;
+    Vertex v2 = he.next().vertex();
+    Vertex v3 = he.next().next().vertex();
+
+    Vector3 e2 = inputVertexPositions[v1] - inputVertexPositions[v3];
+    Vector3 e1 = inputVertexPositions[v2] - inputVertexPositions[v3];
+
+    Vector3 cross;
+    cross.x = e1.y * e2.z - e1.z * e2.y;
+    cross.y = e1.z * e2.x - e1.x * e2.z;
+    cross.z = e1.x * e2.y - e1.y * e2.x;
+
+    double dot = e1.x * e2.x + e1.y * e2.y + e1.z * e2.z;
+    // vector length
+    double det = cross.norm();
+
+    if (det == 0) {
+        printf("--------------------cross product of cotan is 0\n");
+        // print what is e1 and e2
+        printf("--------------------e1: %f %f %f\n", e1.x, e1.y, e1.z);
+        printf("--------------------e2: %f %f %f\n", e2.x, e2.y, e2.z);
+    }
+
+    double cot = dot / det;
+
+    return cot;
 }
 
 /*
@@ -111,18 +124,12 @@ double VertexPositionGeometry::cotan(Halfedge he) const {
  * Returns: The barycentric dual area of the given vertex.
  */
 double VertexPositionGeometry::barycentricDualArea(Vertex v) const {
-    // Note that the barycentric dual area associated with a vertex is
-    // equal to one-third the area of all triangles touching that
-    double totalArea = 0.0;
-    
-    // Iterate through all faces adjacent to the vertex
+
+    double area = 0.0;
     for (Face f : v.adjacentFaces()) {
-        // Add the area of each face
-        totalArea += faceArea(f);
+        area += faceArea(f);
     }
-    
-    // Return one-third of the total area
-    return totalArea / 3.0;
+    return area / 3.0;
 }
 
 /*

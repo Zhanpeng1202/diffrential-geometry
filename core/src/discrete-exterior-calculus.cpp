@@ -42,8 +42,15 @@ namespace surface {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar0Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    SparseMatrix<double> res = identityMatrix<double>(mesh.nVertices());
+
+    for (int i = 0; i < mesh.nVertices(); i++) {
+        Vertex v = mesh.vertex(i);
+        double area = this->barycentricDualArea(v);
+        res.coeffRef(i, i) = area;
+    }
+
+    return res;
 }
 
 /*
@@ -54,8 +61,17 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar0Form() const {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar1Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    SparseMatrix<double> res = identityMatrix<double>(mesh.nEdges());
+
+    for (int i = 0; i < mesh.nEdges(); i++) {
+        Edge e = mesh.edge(i);
+        double cotana = this->cotan(e.halfedge());
+
+        double cotanb = this->cotan(e.halfedge().twin());
+        res.coeffRef(i, i) = (cotana + cotanb) / 2;
+    }
+
+    return res;
 }
 
 /*
@@ -66,8 +82,15 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar1Form() const {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar2Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    SparseMatrix<double> res = identityMatrix<double>(mesh.nFaces());
+
+    for (int i = 0; i < mesh.nFaces(); i++) {
+        Face f = mesh.face(i);
+        double area = this->faceArea(f);
+        res.coeffRef(i, i) = 1.0 / area;
+    }
+
+    return res;
 }
 
 /*
@@ -78,8 +101,15 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar2Form() const {
  */
 SparseMatrix<double> VertexPositionGeometry::buildExteriorDerivative0Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    SparseMatrix<double> res = SparseMatrix<double>(mesh.nEdges(), mesh.nVertices());
+
+    for (int i = 0; i < mesh.nEdges(); i++) {
+        Edge e = mesh.edge(i);
+        res.coeffRef(i, e.firstVertex().getIndex()) = -1;
+        res.coeffRef(i, e.secondVertex().getIndex()) = 1;
+    }
+
+    return res;
 }
 
 /*
@@ -90,8 +120,17 @@ SparseMatrix<double> VertexPositionGeometry::buildExteriorDerivative0Form() cons
  */
 SparseMatrix<double> VertexPositionGeometry::buildExteriorDerivative1Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    SparseMatrix<double> res = SparseMatrix<double>(mesh.nFaces(), mesh.nEdges());
+
+    for (int i = 0; i < mesh.nFaces(); i++) {
+        Face f = mesh.face(i);
+        for (Halfedge he : f.adjacentHalfedges()) {
+            res.coeffRef(i, he.edge().getIndex()) = 
+            (he.tailVertex().getIndex() == he.edge().firstVertex().getIndex()) ? 1 : -1;
+        }
+    }
+
+    return res;
 }
 
 } // namespace surface
