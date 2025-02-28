@@ -42,12 +42,11 @@ namespace surface {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar0Form() const {
 
-    SparseMatrix<double> res = identityMatrix<double>(mesh.nVertices());
+    SparseMatrix<double> res(mesh.nVertices(), mesh.nVertices());
 
-    for (int i = 0; i < mesh.nVertices(); i++) {
-        Vertex v = mesh.vertex(i);
+    for (Vertex v : mesh.vertices()) {
         double area = this->barycentricDualArea(v);
-        res.coeffRef(i, i) = area;
+        res.insert(v.getIndex(), v.getIndex()) = area;
     }
 
     return res;
@@ -61,14 +60,13 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar0Form() const {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar1Form() const {
 
-    SparseMatrix<double> res = identityMatrix<double>(mesh.nEdges());
+    SparseMatrix<double> res(mesh.nEdges(), mesh.nEdges());
 
-    for (int i = 0; i < mesh.nEdges(); i++) {
-        Edge e = mesh.edge(i);
-        double cotana = this->cotan(e.halfedge());
-
-        double cotanb = this->cotan(e.halfedge().twin());
-        res.coeffRef(i, i) = (cotana + cotanb) / 2;
+    for (Edge e : mesh.edges()) {
+        double cot = 0.0;
+        cot += this->cotan(e.halfedge());
+        cot += (e.halfedge().twin() == e.halfedge() ? 0 : this->cotan(e.halfedge().twin()));
+        res.insert(e.getIndex(), e.getIndex()) = cot / 2.0;
     }
 
     return res;
@@ -82,12 +80,11 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar1Form() const {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar2Form() const {
 
-    SparseMatrix<double> res = identityMatrix<double>(mesh.nFaces());
+    SparseMatrix<double> res(mesh.nFaces(), mesh.nFaces());
 
-    for (int i = 0; i < mesh.nFaces(); i++) {
-        Face f = mesh.face(i);
+    for (Face f : mesh.faces()) {
         double area = this->faceArea(f);
-        res.coeffRef(i, i) = 1.0 / area;
+        res.insert(f.getIndex(), f.getIndex()) = 1.0 / area;
     }
 
     return res;
@@ -103,13 +100,41 @@ SparseMatrix<double> VertexPositionGeometry::buildExteriorDerivative0Form() cons
 
     SparseMatrix<double> res = SparseMatrix<double>(mesh.nEdges(), mesh.nVertices());
 
-    for (int i = 0; i < mesh.nEdges(); i++) {
-        Edge e = mesh.edge(i);
-        res.coeffRef(i, e.firstVertex().getIndex()) = -1;
-        res.coeffRef(i, e.secondVertex().getIndex()) = 1;
+    // can we do with halfedge?
+
+    for (Edge e : mesh.edges()) {
+        // if the edge is on the boundary, reverse the direction
+        if (e.isBoundary()) {
+            // res.insert(e.getIndex(), e.firstVertex().getIndex()) = -1;
+            // res.insert(e.getIndex(), e.secondVertex().getIndex()) = 1;
+        } else {
+            res.insert(e.getIndex(), e.firstVertex().getIndex()) = 1;
+            res.insert(e.getIndex(), e.secondVertex().getIndex()) = -1;
+        }
     }
 
+
+    // Halfedge Navigators
+//   Halfedge twin() const;
+//   Halfedge sibling() const;
+//   Halfedge nextOutgoingNeighbor() const; // next halfedge which has the same tail vertex as this, form a cycle
+//   Halfedge nextIncomingNeighbor() const; // next halfedge which has the same tip vertex as this, form a cycle
+//   Halfedge next() const;
+//   Corner corner() const;
+//   Vertex vertex() const;
+//   Vertex tipVertex() const;
+//   Vertex tailVertex() const;
+//   Edge edge() const;
+//   Face face() const;
+//   bool isDead() const;
+    // for (Edge e : mesh.edges()) {
+    // for (Halfedge he : mesh.halfedges()) {
+    //     res.insert(he.edge().getIndex(), he.vertex().getIndex()) = -1;
+    //     res.insert(he.edge().getIndex(), he.twin().vertex().getIndex()) = 1;
+    // }
+
     return res;
+
 }
 
 /*
@@ -122,14 +147,18 @@ SparseMatrix<double> VertexPositionGeometry::buildExteriorDerivative1Form() cons
 
     SparseMatrix<double> res = SparseMatrix<double>(mesh.nFaces(), mesh.nEdges());
 
-    for (int i = 0; i < mesh.nFaces(); i++) {
-        Face f = mesh.face(i);
-        for (Halfedge he : f.adjacentHalfedges()) {
-            res.coeffRef(i, he.edge().getIndex()) = 
-            (he.tailVertex().getIndex() == he.edge().firstVertex().getIndex()) ? 1 : -1;
+    // for (Face f : mesh.faces()) {
+    //     for (Halfedge he : f.adjacentHalfedges()) {
+    //         res.insert(f.getIndex(), he.edge().getIndex()) = (he == he.edge().halfedge()) ? 1 : -1;
+    //     }
+    // }
+
+    for (Face f : mesh.faces()) {
+        for (Edge e : f.adjacentEdges()) {
+            // direction of the edge
+            res.insert(f.getIndex(), e.getIndex()) = 1;
         }
     }
-
     return res;
 }
 
