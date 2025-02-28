@@ -105,6 +105,9 @@ double VertexPositionGeometry::cotan(Halfedge he) const {
     // vector length
     double det = cross.norm();
 
+    // there are cases where e1 parallel to e2
+    // why this would happen????? Boundary???
+
     if (det == 0) {
         printf("--------------------cross product of cotan is 0\n");
         // print what is e1 and e2
@@ -124,6 +127,17 @@ double VertexPositionGeometry::cotan(Halfedge he) const {
  * Returns: The barycentric dual area of the given vertex.
  */
 double VertexPositionGeometry::barycentricDualArea(Vertex v) const {
+    //
+    //Note that the barycentric dual area 
+    // associated with a vertex 
+    // is equal to one-third the area of all triangles 
+    // touching 
+    // , i.e.,
+    // 
+    // A_i = 1/3 * sum(area(f_j))
+    //      for all f_j in F(v)
+    // 
+    // where F(v) is the set of all faces touching vertex v.
 
     double area = 0.0;
     for (Face f : v.adjacentFaces()) {
