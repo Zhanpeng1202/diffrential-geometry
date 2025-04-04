@@ -154,9 +154,44 @@ double VertexPositionGeometry::barycentricDualArea(Vertex v) const {
  * Returns: The angle clamped between 0 and π.
  */
 double VertexPositionGeometry::angle(Corner c) const {
+    // // Get the vertex at this corner
+    // Vertex v = c.vertex();
+    
+    // // Get the next and previous vertices in the face
+    // Halfedge he = c.halfedge();
+    // Vertex vNext = he.next().vertex();
+    // Vertex vPrev = he.next().next().vertex();
+    
+    // // Compute vectors from the corner vertex to its adjacent vertices
+    // Vector3 vec1 = inputVertexPositions[vNext] - inputVertexPositions[v];
+    // Vector3 vec2 = inputVertexPositions[vPrev] - inputVertexPositions[v];
+    
+    // // Normalize the vectors
+    // vec1 = vec1.normalize();
+    // vec2 = vec2.normalize();
+    
+    // // Compute the dot product
+    // double dotProduct = dot(vec1, vec2);
+    
+    // // Compute the angle using the arc cosine of the dot product
+    // double angleValue = std::acos(dotProduct);
+    
+    // return angleValue;
+    // WARNING: Logic duplicated between cached and immediate version
 
-    // TODO
-    return 0; // placeholder
+    Halfedge he = c.halfedge();
+    Vector3 pA = inputVertexPositions[he.vertex()];
+    he = he.next();
+    Vector3 pB = inputVertexPositions[he.vertex()];
+    he = he.next();
+    Vector3 pC = inputVertexPositions[he.vertex()];
+
+    GC_SAFETY_ASSERT(he.next() == c.halfedge(), "faces mush be triangular");
+
+    double q = dot(unit(pB - pA), unit(pC - pA));
+    q = clamp(q, -1.0, 1.0);
+    double angle = std::acos(q);
+    return angle;
 }
 
 /*
@@ -166,93 +201,142 @@ double VertexPositionGeometry::angle(Corner c) const {
  * Returns: The dihedral angle.
  */
 double VertexPositionGeometry::dihedralAngle(Halfedge he) const {
+    if (he.edge().isBoundary() || !he.edge().isManifold() ) {
+       return 0.;
+    }
 
-    // TODO
-    return 0; // placeholder
+    Vector3 N1 = faceNormal(he.face());
+    Vector3 N2 = faceNormal(he.sibling().face());
+    Vector3 pTail = inputVertexPositions[he.vertex()];
+    Vector3 pTip = inputVertexPositions[he.next().vertex()];
+    Vector3 edgeDir = unit(pTip - pTail);
+
+    double dihedralAngle = atan2(dot(edgeDir, cross(N1, N2)), dot(N1, N2));
+    return dihedralAngle;
 }
 
 /*
  * Computes the normal at a vertex using the "equally weighted" method.
- *
+ * i.e. the normal is the average of the normals of the faces that the vertex is adjacent to
  * Input: The vertex on which the normal is to be computed.
  * Returns: The "equally weighted" normal vector.
  */
 Vector3 VertexPositionGeometry::vertexNormalEquallyWeighted(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    Vector3 vertexNormal = Vector3::zero();
+    for (Face f : v.adjacentFaces()) {
+        vertexNormal += faceNormal(f);
+    }
+
+    return unit(vertexNormal);
 }
 
 /*
  * Computes the normal at a vertex using the "tip angle weights" method.
- *
+ # i.e. N = Sum of (N_i * Phi_i)
+ * Noted that Phi_i is the each angle of the corner at all faces that the vertex is adjacent to
+
  * Input: The vertex on which the normal is to be computed.
  * Returns: The "tip angle weights" normal vector.
  */
 Vector3 VertexPositionGeometry::vertexNormalAngleWeighted(Vertex v) const {
-
-    // TODO
-    return {0, 0, 0}; // placeholder
+    Vector3 vertexNormal = Vector3::zero();
+    for (Corner c : v.adjacentCorners()) {
+        // vertexNormal += faceNormal(c.halfedge().face()) * angle(c);
+        if (c.vertex() == v) {
+            vertexNormal += faceNormal(c.halfedge().face()) * angle(c);
+        }
+    }
+    return unit(vertexNormal);
 }
 
 /*
  * Computes the normal at a vertex using the "inscribed sphere" method.
- *
+ * 
+ * i.e. N = Sum of Cross(e_ij, e_ik)
+ * Cross  = e_ij x e_ik
+ * i is the vertex on which the normal is to be computed
+ * j and k are the two vertices that are adjacent to i
  * Input: The vertex on which the normal is to be computed.
  * Returns: The "inscribed sphere" normal vector.
  */
 Vector3 VertexPositionGeometry::vertexNormalSphereInscribed(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    Vector3 vertexNormal = Vector3::zero();
+    for (Corner c : v.adjacentCorners()) {
+        Vector3 cross_product = cross(halfedgeVector(c.halfedge()), halfedgeVector(c.halfedge().next()));
+
+        float eij = edgeLength(c.halfedge().edge());
+        float eik = edgeLength(c.halfedge().next().edge());
+
+        vertexNormal += cross_product / (eij * eik);
+    }
+    return unit(vertexNormal);
 }
 
 /*
  * Computes the normal at a vertex using the "face area weights" method.
- *
+ * i.e. N = Sum of (N_i * A_i)
  * Input: The vertex on which the normal is to be computed.
  * Returns: The "face area weighted" normal vector.
  */
 Vector3 VertexPositionGeometry::vertexNormalAreaWeighted(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    Vector3 vertexNormal = Vector3::zero();
+    for (Face f : v.adjacentFaces()) {
+        vertexNormal += faceNormal(f) * faceArea(f);
+    }
+    return unit(vertexNormal);
 }
 
 /*
  * Computes the normal at a vertex using the "Gauss curvature" method.
- *
+ * KN_i = 1/2 * Sum of (theta_{ij} * unit(E_{ij}))
+ * theta_{ij} is the dihedral angle for edge ij
  * Input: The vertex on which the normal is to be computed.
  * Returns: The "Gauss curvature" normal vector.
  */
 Vector3 VertexPositionGeometry::vertexNormalGaussianCurvature(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    Vector3 vertexNormal = Vector3::zero();
+    for (Edge e : v.adjacentEdges()) {
+        vertexNormal += dihedralAngle(e.halfedge()) * unit(halfedgeVector(e.halfedge()));
+    }
+    return unit(vertexNormal);
 }
 
 /*
  * Computes the normal at a vertex using the "mean curvature" method (equivalent to the "area gradient" method).
  *
  * Input: The vertex on which the normal is to be computed.
+ * i.e. N = 1/2 Sum of (cot(alpha) + cot(beta)) * e_ij
+ * alpha and beta are the angles at the vertex opposite to edge e_ij
+ * e_ij is the edge between vertex i and j
  * Returns: The "mean curvature" normal vector.
  */
 Vector3 VertexPositionGeometry::vertexNormalMeanCurvature(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    Vector3 vertexNormal = Vector3::zero();
+    for (Edge e : v.adjacentEdges()) {
+        vertexNormal += (cotan(e.halfedge()) + cotan(e.halfedge().twin())) * halfedgeVector(e.halfedge());
+    }
+    return unit(vertexNormal);
 }
 
 /*
  * Computes the angle defect at a vertex.
  *
  * Input: The vertex whose angle defect is to be computed.
+ * i.e. angle defect = 2 * pi - sum of angles of all corners at the vertex
  * Returns: The angle defect of the given vertex.
  */
 double VertexPositionGeometry::angleDefect(Vertex v) const {
 
-    // TODO
-    return 0; // placeholder
+    double angleDefect = 0.0;
+    for (Corner c : v.adjacentCorners()) {
+        angleDefect += angle(c);
+    }
+    return 2 * PI - angleDefect;
 }
 
 /*
@@ -260,11 +344,11 @@ double VertexPositionGeometry::angleDefect(Vertex v) const {
  *
  * Input:
  * Returns: The total angle defect
+ * from the gauss-bonnet theorem, it is equal to 2 * pi * (1 - \chi(M))
  */
 double VertexPositionGeometry::totalAngleDefect() const {
-
-    // TODO
-    return 0; // placeholder
+    int chi = eulerCharacteristic();
+    return 2 * PI * (1 - chi);
 }
 
 /*
@@ -274,21 +358,29 @@ double VertexPositionGeometry::totalAngleDefect() const {
  * Returns: The mean curvature at the given vertex.
  */
 double VertexPositionGeometry::scalarMeanCurvature(Vertex v) const {
-
-    // TODO
-    return 0; // placeholder
+   double meanCurvature = 0.;
+   for (Halfedge he : v.outgoingHalfedges()) {
+      double len = edgeLength(he.edge());
+      double alpha = edgeDihedralAngle(he.edge());
+      meanCurvature += alpha * len / 2.;
+   }
+   return meanCurvature/2.;
 }
 
 /*
  * Computes the circumcentric dual area of a vertex.
  *
  * Input: The vertex whose circumcentric dual area is to be computed.
+ * A_i = 1/8 Sum of (e_{ij}^2 * cot(alpha_{ij}) + e_{ik}^2 * cot(beta_{ik}))
+ * we sum over all face, j and k are the two vertices that are adjacent to i
  * Returns: The circumcentric dual area of the given vertex.
  */
 double VertexPositionGeometry::circumcentricDualArea(Vertex v) const {
-
-    // TODO
-    return 0; // placeholder
+    double area = 0.0;
+    for (Face f : v.adjacentFaces()) {
+        area += faceArea(f);
+    }
+    return area / 8.0;
 }
 
 /*
@@ -299,8 +391,14 @@ double VertexPositionGeometry::circumcentricDualArea(Vertex v) const {
  */
 std::pair<double, double> VertexPositionGeometry::principalCurvatures(Vertex v) const {
 
-    // TODO
-    return std::make_pair(0, 0); // placeholder
+    double A = vertexDualArea(v);
+    double H = vertexMeanCurvature(v) / A;
+    double K = vertexGaussianCurvature(v) / A;
+
+    double k1 = H - std::sqrt(H*H - K);
+    double k2 = H + std::sqrt(H*H - K);
+
+    return std::make_pair(k1, k2);
 }
 
 

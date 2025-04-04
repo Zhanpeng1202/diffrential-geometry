@@ -42,8 +42,6 @@ namespace surface {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar0Form() const {
 
-
-
     SparseMatrix<double> star0 = SparseMatrix<double> (mesh.nVertices(), mesh.nVertices());
 
     for (Vertex v : mesh.vertices()) {
@@ -62,9 +60,6 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar0Form() const {
  * Returns: A sparse diagonal matrix representing the Hodge operator that can be applied to discrete 1-forms.
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar1Form() const {
-
-
-
 
     SparseMatrix<double> star1 = SparseMatrix<double> (mesh.nEdges(), mesh.nEdges());
 
