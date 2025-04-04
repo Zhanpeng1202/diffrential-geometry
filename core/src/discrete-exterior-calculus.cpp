@@ -46,7 +46,6 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar0Form() const {
 
     for (Vertex v : mesh.vertices()) {
         double area = barycentricDualArea(v);
-
         star0.insert(v.getIndex(), v.getIndex()) = area;
     }
 

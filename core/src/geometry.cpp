@@ -264,12 +264,27 @@ Vector3 VertexPositionGeometry::vertexNormalSphereInscribed(Vertex v) const {
 
     Vector3 vertexNormal = Vector3::zero();
     for (Corner c : v.adjacentCorners()) {
-        Vector3 cross_product = cross(halfedgeVector(c.halfedge()), halfedgeVector(c.halfedge().next()));
+        //
+        //       i
+        //      /  \ half
+        //     /    \ edge
+        //    j ---- k
+        Halfedge he = c.halfedge();
+        Vector3 pi = inputVertexPositions[he.vertex()];
+        he = he.next();
+        Vector3 pj = inputVertexPositions[he.vertex()];
+        he = he.next();
+        Vector3 pk = inputVertexPositions[he.vertex()];
 
-        float eij = edgeLength(c.halfedge().edge());
-        float eik = edgeLength(c.halfedge().next().edge());
+        Vector3 eij = pj - pi;
+        Vector3 eik = pk - pi;
 
-        vertexNormal += cross_product / (eij * eik);
+        Vector3 cross_product = cross(eij, eik);
+
+        double eij_norm = eij.norm();
+        double eik_norm = eik.norm();
+
+        vertexNormal += cross_product / (eij_norm * eik_norm) / (eij_norm * eik_norm);
     }
     return unit(vertexNormal);
 }
@@ -299,8 +314,12 @@ Vector3 VertexPositionGeometry::vertexNormalAreaWeighted(Vertex v) const {
 Vector3 VertexPositionGeometry::vertexNormalGaussianCurvature(Vertex v) const {
 
     Vector3 vertexNormal = Vector3::zero();
-    for (Edge e : v.adjacentEdges()) {
-        vertexNormal += dihedralAngle(e.halfedge()) * unit(halfedgeVector(e.halfedge()));
+    for (Halfedge he : v.outgoingHalfedges()) {
+
+        Vector3 pi = inputVertexPositions[he.vertex()];
+        Vector3 pj = inputVertexPositions[he.twin().vertex()];
+        Vector3 eij = pj - pi;
+        vertexNormal += dihedralAngle(he) * unit(eij);
     }
     return unit(vertexNormal);
 }
@@ -317,8 +336,11 @@ Vector3 VertexPositionGeometry::vertexNormalGaussianCurvature(Vertex v) const {
 Vector3 VertexPositionGeometry::vertexNormalMeanCurvature(Vertex v) const {
 
     Vector3 vertexNormal = Vector3::zero();
-    for (Edge e : v.adjacentEdges()) {
-        vertexNormal += (cotan(e.halfedge()) + cotan(e.halfedge().twin())) * halfedgeVector(e.halfedge());
+    for (Halfedge he : v.outgoingHalfedges()) {
+        Vector3 pi = inputVertexPositions[he.vertex()];
+        Vector3 pj = inputVertexPositions[he.twin().vertex()];
+        Vector3 eij = pj - pi;
+        vertexNormal += (cotan(he) + cotan(he.twin())) * eij;
     }
     return unit(vertexNormal);
 }
@@ -348,7 +370,7 @@ double VertexPositionGeometry::angleDefect(Vertex v) const {
  */
 double VertexPositionGeometry::totalAngleDefect() const {
     int chi = eulerCharacteristic();
-    return 2 * PI * (1 - chi);
+    return 2 * PI * (chi);
 }
 
 /*
@@ -364,24 +386,47 @@ double VertexPositionGeometry::scalarMeanCurvature(Vertex v) const {
       double alpha = edgeDihedralAngle(he.edge());
       meanCurvature += alpha * len / 2.;
    }
-   return meanCurvature/2.;
+   return meanCurvature;
 }
 
 /*
  * Computes the circumcentric dual area of a vertex.
  *
  * Input: The vertex whose circumcentric dual area is to be computed.
- * A_i = 1/8 Sum of (e_{ij}^2 * cot(alpha_{ij}) + e_{ik}^2 * cot(beta_{ik}))
+ * A_i = 1/8 Sum of (e_{ik}^2 * cot(alpha_{ki}) + e_{ij}^2 * cot(beta_{ij}))
  * we sum over all face, j and k are the two vertices that are adjacent to i
  * Returns: The circumcentric dual area of the given vertex.
  */
 double VertexPositionGeometry::circumcentricDualArea(Vertex v) const {
     double area = 0.0;
+
     for (Face f : v.adjacentFaces()) {
-        area += faceArea(f);
+        // find the halfedge that has tail == v
+        Halfedge he = f.halfedge();
+        while (he.vertex() != v) {
+            he = he.next();
+        }
+
+        // The other two vertices are:
+        //   j = he.tipVertex()
+        //   k = he.next().tipVertex()
+        // Edges from v to j and v to k:
+        double vj = edgeLength(he.edge());                // i->j
+        double vk = edgeLength(he.next().next().edge());  // i->k
+
+        // Angles at j and k:
+        //  - angle at k is cotan(he)          (since he.edge() is opposite k)
+        //  - angle at j is cotan(he.next().next()) 
+        //      (since he.next().next().edge() is opposite j)
+        double cotAtK = cotan(he);
+        double cotAtJ = cotan(he.next().next());  // or possibly he.prev()
+
+        double contribution = (vj * vj * cotAtK + vk * vk * cotAtJ) / 8.0;
+        area += contribution;
     }
-    return area / 8.0;
+    return area;
 }
+
 
 /*
  * Computes the (pointwise) minimum and maximum principal curvature values at a vertex.
@@ -391,9 +436,9 @@ double VertexPositionGeometry::circumcentricDualArea(Vertex v) const {
  */
 std::pair<double, double> VertexPositionGeometry::principalCurvatures(Vertex v) const {
 
-    double A = vertexDualArea(v);
-    double H = vertexMeanCurvature(v) / A;
-    double K = vertexGaussianCurvature(v) / A;
+    double A = circumcentricDualArea(v);
+    double H = scalarMeanCurvature(v) / A;
+    double K = angleDefect(v) / (A);
 
     double k1 = H - std::sqrt(H*H - K);
     double k2 = H + std::sqrt(H*H - K);
