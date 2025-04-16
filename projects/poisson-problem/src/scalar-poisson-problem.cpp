@@ -27,13 +27,13 @@ Vector<double> ScalarPoissonProblem::solve(const Vector<double>& rho) const {
 
     // TODO
     // Note: Geometry Central has linear solvers: https://geometry-central.net/numerical/linear_solvers/
-    SparseMatrix<double> L = this->A * this->M;
+    SparseMatrix<double> L = this->A ;
     // solve Lx = -M(rho - rhoBar)
 
     // rhoBar = /int_M (rho) / totalArea
     double rhoBar_value = 0;
     for (int i = 0; i < rho.rows(); i++) {
-        rhoBar_value += rho[i] * geometry->barycentricDualArea(mesh->vertex(i));
+        rhoBar_value += rho[i] * geometry->barycentricDualArea(this->mesh->vertex(i));
     }
     rhoBar_value /= this->totalArea;
 
