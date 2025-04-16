@@ -462,19 +462,20 @@ SparseMatrix<double> VertexPositionGeometry::laplaceMatrix() const {
     // laplace matrix L, L is a matrix of size v x v
     double tikhonov = 1e-8;
     SparseMatrix<double> L = SparseMatrix<double>(mesh.nVertices(), mesh.nVertices());
+    std::vector<Eigen::Triplet<double>> L_entries;
 
     for (Vertex i : mesh.vertices()) {
         double sum = 0;
-        for (Halfedge he : i.outgoingHalfedges()) {
-            if (he.edge().isBoundary() || !he.edge().isManifold()) {
-                continue;
-            }
-            L.coeffRef(i.getIndex(), he.tipVertex().getIndex()) = cotan(he)+cotan(he.twin());
-            sum += cotan(he)+cotan(he.twin());
+        for (Halfedge he : i.incomingHalfedges()) {
+
+            double cot = (cotan(he)+cotan(he.twin()))*0.5;
+            L_entries.push_back(Eigen::Triplet<double>(i.getIndex(), he.vertex().getIndex(), -cot));
+            sum += cot;
         }
-        L.coeffRef(i.getIndex(), i.getIndex()) = -sum + tikhonov;
+        L_entries.push_back(Eigen::Triplet<double>(i.getIndex(), i.getIndex(), sum + tikhonov));
     }
 
+    L.setFromTriplets(L_entries.begin(), L_entries.end());
     return L;
 }
 
