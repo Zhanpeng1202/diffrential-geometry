@@ -455,21 +455,42 @@ std::pair<double, double> VertexPositionGeometry::principalCurvatures(Vertex v) 
  * Returns: Sparse positive definite Laplace matrix for the mesh.
  */
 SparseMatrix<double> VertexPositionGeometry::laplaceMatrix() const {
+    // on the non-diagonal L_{ij} = (cot(alpha_{ij}) + cot(beta_{ij})) (u_i - u_j)
+    // on the diagonal L_{ii} = - sum(over j) (cot(alpha_{ij}) + cot(beta_{ij}))
+    // to make the matrix positive definite, we add a small constant epsilon to the diagonal
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    // laplace matrix L, L is a matrix of size v x v
+    double tikhonov = 1e-8;
+    SparseMatrix<double> L = SparseMatrix<double>(mesh.nVertices(), mesh.nVertices());
+
+    for (Vertex i : mesh.vertices()) {
+        double sum = 0;
+        for (Halfedge he : i.outgoingHalfedges()) {
+            if (he.edge().isBoundary() || !he.edge().isManifold()) {
+                continue;
+            }
+            L.coeffRef(i.getIndex(), he.tipVertex().getIndex()) = cotan(he)+cotan(he.twin());
+            sum += cotan(he)+cotan(he.twin());
+        }
+        L.coeffRef(i.getIndex(), i.getIndex()) = -sum + tikhonov;
+    }
+
+    return L;
 }
 
 /*
  * Builds the sparse diagonal mass matrix containing the barycentric dual area of each vertex.
- *
+ * The mass matrix is a diagonal matrix containing the barycentric dual area of each vertex.
  * Input:
  * Returns: Sparse mass matrix for the mesh.
  */
 SparseMatrix<double> VertexPositionGeometry::massMatrix() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    SparseMatrix<double> M = SparseMatrix<double>(mesh.nVertices(), mesh.nVertices());
+    for (Vertex v : mesh.vertices()) {
+        M.coeffRef(v.getIndex(), v.getIndex()) = barycentricDualArea(v);
+    }
+    return M;
 }
 
 /*
