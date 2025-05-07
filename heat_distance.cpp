@@ -1,7 +1,6 @@
+// Implement member functions HeatMethod class.
 #include "heat-method.h"
-#include "GeometryCentral/numerical/linear_solvers.h"
-
-
+#include "geometrycentral/numerical/linear_solvers.h"
 
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
@@ -15,13 +14,13 @@ HeatMethod::HeatMethod(ManifoldSurfaceMesh* surfaceMesh, VertexPositionGeometry*
     this->geometry = geo;
 
     // TODO: Build Laplace and flow matrices.
+    double edgeLength = this->geometry->meanEdgeLength();
+    double timeStep = edgeLength*edgeLength;
+    int N = mesh->nVertices();
+    SparseMatrix<double> M = geometry->massMatrix();
     // Note: core/geometry.cpp has meanEdgeLength() function
-    double t = geometry->meanEdgeLength();
-    t = t * t;
-
-
     this->A = geometry->laplaceMatrix();
-    this->F = geometry->massMatrix() + (t * A);
+    this->F = M + timeStep * A;
 }
 
 /*
@@ -32,61 +31,45 @@ HeatMethod::HeatMethod(ManifoldSurfaceMesh* surfaceMesh, VertexPositionGeometry*
  * Returns: A MeshData container that stores a Vector3 per face.
  */
 FaceData<Vector3> HeatMethod::computeVectorField(const Vector<double>& u) const {
-
-    FaceData<Vector3> vectorField(*mesh, Vector3{0, 0, 0});
-    
+    FaceData<Vector3> vf(*mesh, {0, 0, 0});
 
     for (Face f : mesh->faces()) {
-        Vector3 gradient = Vector3::zero();
+        Vector3 grad{0, 0, 0};
         Vector3 normal = geometry->faceNormal(f);
-        
+
         for (Halfedge he : f.adjacentHalfedges()) {
-            size_t vertexIndex = he.vertex().getIndex();
-            double heatValue = u[vertexIndex];
-            
-            // get Mathcal{J} e_i
-            Vector3 edgeVector = geometry->halfedgeVector(he.next());
-            Vector3 perpVector = cross(normal, edgeVector);
-            
-            gradient += perpVector * heatValue;
+            Vector3 ePerp = geometry->inputVertexPositions[he.next().tipVertex()] - geometry->inputVertexPositions[he.next().tailVertex()];
+            ePerp = ePerp.rotateAround(normal, M_PI/2);
+            grad += ePerp * u[he.vertex().getIndex()];
         }
-        vectorField[f] = -gradient.normalizeCutoff();
+        vf[f.getIndex()] = -grad.normalizeCutoff();
     }
-    
-    return vectorField;
+
+    return vf;
 }
 
 /*
  * Computes the integrated divergence ∇.X.
  *
- * 
- * 
  * Input: <X>, the vector field -∇u / |∇u| represented as a FaceData container
- * Returns: A dense vector containing the divergence at each vertex
+ * Returns: A dense vector
  */
 Vector<double> HeatMethod::computeDivergence(const FaceData<Vector3>& X) const {
-    // Initialize divergence vector with zeros for each vertex
-    Vector<double> divergence = Vector<double>::Zero(mesh->nVertices());
-    
+    Vector<double> div = Vector<double>::Zero(mesh->nVertices());
+
     for (Face f : mesh->faces()) {
-        Vector3 faceVector = X[f];
-        
-        // For each halfedge in the face, compute its contribution to the divergence
+        Vector3 Xj = X[f.getIndex()];
         for (Halfedge he : f.adjacentHalfedges()) {
-            Vector3 edgeVector = geometry->halfedgeVector(he);
-            
-            double cotWeight = geometry->cotan(he);
-            double contribution = 0.5 * cotWeight * dot(edgeVector, faceVector);
-            
-            size_t tailIndex = he.tailVertex().getIndex();
-            size_t tipIndex  = he.tipVertex().getIndex();
-            
-            divergence[tailIndex] += contribution;
-            divergence[tipIndex] -= contribution;
+            Vector3 e = geometry->inputVertexPositions[he.tipVertex()] - geometry->inputVertexPositions[he.tailVertex()];
+            double val = 0.5*geometry->cotan(he) * dot(e, Xj);
+            div[he.tailVertex().getIndex()] += val;
+            div[he.tipVertex().getIndex()] += -val;
         }
     }
-    return divergence;
+    return div; // placeholder
 }
+
+
 
 /*
  * Computes the geodesic distances φ using the heat method.
@@ -95,18 +78,14 @@ Vector<double> HeatMethod::computeDivergence(const FaceData<Vector3>& X) const {
  * geodesic distances per vertex.
  */
 Vector<double> HeatMethod::compute(const Vector<double>& delta) const {
-    SparseMatrix<double> F = this->F;
     Eigen::SimplicialLLT<SparseMatrix<double>> llt(F);
-    Vector<double> ut = llt.solve(delta);
-
-
-    FaceData<Vector3> X = computeVectorField(ut);
-    Vector<double> divX = computeDivergence(X);
-
+    Vector<double> u = llt.solve(delta);
+    FaceData<Vector3> X = computeVectorField(u);
+    Vector<double> deltaPhi = computeDivergence(X);
 
     SparseMatrix<double> A = this->A;
     geometrycentral::PositiveDefiniteSolver<double> solver(A);
-    Vector<double> phi = - solver.solve(divX);
+    Vector<double> phi = solver.solve(-deltaPhi);
 
     // Since φ is unique up to an additive constant, it should be shifted such that the smallest distance is zero
     this->subtractMinimumDistance(phi);
